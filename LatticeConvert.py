@@ -7,6 +7,7 @@
 from LatticeData import Lattice
 from SixDSimParser import SixDSimParser
 from ElegantParser import ElegantParser
+from MADXParser import MADXParser
 
 class LatticeConverter:
     def __init__(self, **kwargs):
@@ -24,7 +25,18 @@ class LatticeConverter:
                           verbose=self.Verbose)
         self.Lattice = parser.Lattice
 
+    def LoadElegant(self, **kwargs):
+        parser = ElegantParser()
+        parser.ParseInput(inputFile=kwargs.get('inputFile'),
+                          verbose=self.Verbose)
+        self.Lattice = parser.Lattice
+
     def WriteElegant(self, **kwargs):
         parser = ElegantParser()
+        parser.LoadLattice(self.Lattice)
+        parser.WriteLattice(outputFile=kwargs.get('outputFile'))
+
+    def WriteMADX(self, **kwargs):
+        parser = MADXParser()
         parser.LoadLattice(self.Lattice)
         parser.WriteLattice(outputFile=kwargs.get('outputFile'))
