@@ -4,11 +4,17 @@
 # M Wallbank, Fermilab <wallbank@fnal.gov>
 # July 2023
 
-class Drift:
-    def __init__(self, name, length):
+import numpy as np
+
+class Element:
+    def __init__(self, name, **kwargs):
         self.Name = name
-        self.Length = length
-        if self.Length is None: self.Length = 0.
+        self.Center = kwargs.get('center') if 'center' in kwargs else None
+
+class Drift(Element):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
+        self.Length = kwargs.get('length')
 
     def WriteElegant(self, outFile):
         outFile.write("{}: DRIF, L={}\n".format(self.Name, self.Length))
@@ -16,12 +22,12 @@ class Drift:
     def WriteMADX(self, outFile):
         outFile.write("{}: DRIFT, L={};\n".format(self.Name, self.Length))
 
-class RF:
-    def __init__(self, name, length, energy, frequency):
-        self.Name = name
-        self.Length = length
-        self.Energy = energy
-        self.Frequency = frequency
+class RF(Element):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
+        self.Length = kwargs.get('length')
+        self.Energy = kwargs.get('energy') if 'energy' in kwargs else None
+        self.Frequency = kwargs.get('frequency') if 'frequency' in kwargs else None
 
     def WriteElegant(self, outFile):
         outFile.write("{}: RFCA, L={}, CHANGE_T=1\n".format(self.Name, self.Length))
@@ -29,43 +35,62 @@ class RF:
     def WriteMADX(self, outFile):
         outFile.write("{}: RFCAVITY, L={}, VOLT=3e-5, LAG=0, HARMON=4;\n".format(self.Name, self.Length))
 
-class DipoleEdge:
-    def __init__(self, name, k0, gap, fringek):
-        self.Name = name
-        self.K0 = k0
-        self.Gap = gap
-        self.FringeK = fringek
+class DipoleEdge(Element):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
+        self.Angle = kwargs.get('angle', None)
+        self.E1 = kwargs.get('e1', None)
+        self.K0 = kwargs.get('k0', None)
+        self.Gap = kwargs.get('gap', None)
+        self.FringeK = kwargs.get('fringek', None)
 
-class Dipole:
-    def __init__(self, name, length, angle, k0, k1, gap, fringek):
-        self.Name = name
-        self.Length = length
-        self.Angle = angle
-        self.K0 = k0
-        self.K1 = k1
-        self.Gap = gap
-        self.FringeK = fringek
+class Dipole(Element):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
         self.UpEdge = None
         self.DownEdge = None
+        self.Sector = True
+        self.Length = kwargs.get('length', None)
+        self.Angle = kwargs.get('angle', None)
+        self.K0 = kwargs.get('k0', None)
+        self.K1 = kwargs.get('k1', 0.)
+        self.Gap = kwargs.get('gap', 0.)
+        self.FringeK = kwargs.get('fringek', 0.)
+        self.E1 = kwargs.get('e1', 0.)
+        self.E2 = kwargs.get('e2', 0.)
         if self.Angle is None:
             self.Angle = self.K0 * self.Length if self.K0 else 0.
         if self.K0 is None:
             self.K0 = self.Angle / self.Length if self.Angle else 0.
-        if self.K1 is None: self.K1 = 0.
 
     def AddUpEdge(self, edge):
         self.UpEdge = edge
         if self.Gap is None: self.Gap = edge.Gap
         if self.FringeK is None: self.FringeK = edge.FringeK
+        if edge.E1 is not None: self.E1 = edge.E1
 
     def AddDownEdge(self, edge):
         self.DownEdge = edge
         if self.Gap == None: self.Gap = edge.Gap
         if self.FringeK == None: self.FringeK = edge.FringeK
+        if edge.E1 is not None: self.E2 = edge.E1
 
     def WriteElegant(self, outFile, n_slices=10, synch_rad=True):
-        outFile.write("{}: CSBEND, L={}, ANGLE={}, K1={}, HGAP={}, FINT={}, INTEGRATION_ORDER=4, n_slices={}, synch_rad={}, isr={}\n"
-                      .format(self.Name, self.Length, self.Angle, self.K1, self.Gap, self.FringeK, n_slices, int(synch_rad), int(synch_rad)))
+        if self.Gap is None: self.Gap = 0.
+        if self.FringeK is None: self.FringeK = 0.
+        if self.Sector:
+            outFile.write("{}: CSBEND, L={}, ANGLE={}, K1={}, HGAP={}, FINT={}, INTEGRATION_ORDER=4, N_SLICES={}, SYNCH_RAD={}, ISR={}\n"
+                          .format(self.Name, self.Length, self.Angle, self.K1, self.Gap, self.FringeK, n_slices, int(synch_rad), int(synch_rad)))
+        else:
+            length = self.Length * np.sin(self.Angle) / self.Angle
+            edge_angle = self.Angle
+            outFile.write("{}: CSBEND, L={}, ANGLE={}, K1={}, HGAP={}, FINT={}, E1={}, E2={}, INTEGRATION_ORDER=4, N_SLICES={}, SYNCH_RAD={}, ISR={}\n"
+                          .format(self.Name, length, self.Angle, self.K1, self.Gap, self.FringeK, edge_angle, edge_angle,
+                                  n_slices, int(synch_rad), int(synch_rad)))
+            # outFile.write("{}: CCBEND, L={}, ANGLE={}, K1={}, HGAP={}, FINT1={}, FINT2={}, INTEGRATION_ORDER=4, N_SLICES={}, SYNCH_RAD={}, ISR={}\n"
+            #               .format(self.Name, length, self.Angle, self.K1, self.Gap, self.FringeK, self.FringeK, n_slices, int(synch_rad), int(synch_rad)))
+            # outFile.write("{}: RBEND, L={}, ANGLE={}, K1={}, HGAP={}, FINT={}, E1={}, E2={}\n"
+            #               .format(self.Name, length, self.Angle, self.K1, self.Gap, self.FringeK, self.E1, self.E2))
 
     def WriteMADX(self, outFile):
         outFile.write("IN{}: DIPEDGE, H={}, HGAP={}, FINT={};\n"
@@ -75,63 +100,59 @@ class Dipole:
         outFile.write("OUT{}: DIPEDGE, H={}, HGAP={}, FINT={};\n"
                       .format(self.Name, self.Angle/self.Length, self.Gap, self.FringeK))
 
-class Quad:
-    def __init__(self, name, length, k1):
-        self.Name = name
-        self.Length = length
-        self.K1 = k1
-        if self.K1 is None: self.K1 = 0.
+class Quad(Element):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
+        self.Length = kwargs.get('length')
+        self.K1 = kwargs.get('k1', 0.)
 
-    def WriteElegant(self, outFile, kick=True, n_slices=10, synch_rad=True):
-        quadType = "KQUAD" if kick else "QUAD"
-        outFile.write("{}: {}, L={}, n_slices={}, synch_rad={}, K1={}\n"
-                      .format(self.Name, quadType, self.Length, n_slices, int(synch_rad), self.K1))
+    def WriteElegant(self, outFile, **kwargs):
+        quadType = "KQUAD" if kwargs.get("kick", True) else "QUAD"
+        outFile.write("{}: {}, L={}, N_SLICES={}, SYNCH_RAD={}, K1={}\n"
+                      .format(self.Name, quadType, self.Length, kwargs.get("n_slices"), int(kwargs.get("synch_rad")),
+                              self.K1 if not kwargs.get("k1_zero") else 0.))
 
     def WriteMADX(self, outFile):
         outFile.write("{}: QUADRUPOLE, L={}, K1={};\n".format(self.Name, self.Length, self.K1))
 
-class SQuad:
-    def __init__(self, name, length, k1, tilt):
-        self.Name = name
-        self.Length = length
-        self.K1 = k1
-        self.Tilt = tilt
-        if self.K1 is None: self.K1 = 0.
-        if self.Tilt is None: self.Tilt = 0.
+class SQuad(Element):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.Length = kwargs.get('length')
+        self.K1 = kwargs.get('k1', 0.)
+        self.Tilt = kwargs.get('tilt', 0.)
 
     def WriteElegant(self, outFile, kick=True, n_slices=10, synch_rad=True):
         quadType = "KQUAD" if kick else "QUAD"
-        outFile.write("{}: {}, L={}, n_slices={}, synch_rad={}, K1={}, TILT={}\n"
+        outFile.write("{}: {}, L={}, N_SLICES={}, SYNCH_RAD={}, K1={}, TILT={}\n"
                       .format(self.Name, quadType, self.Length, n_slices, int(synch_rad), self.K1, self.Tilt))
 
     def WriteMADX(self, outFile):
         outFile.write("{}: QUADRUPOLE, L={}, K1S={};\n".format(self.Name, self.Length, self.K1))
 
-class Sext:
-    def __init__(self, name, length, k2):
-        self.Name = name
-        self.Length = length
-        self.K2 = k2
-        if self.K2 is None: self.K2 = 0.
+class Sext(Element):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
+        self.Length = kwargs.get('length')
+        self.K2 = kwargs.get('k2', 0.)
 
     def WriteElegant(self, outFile, kick=True, n_slices=10, synch_rad=True):
         sextType = "KSEXT" if kick else "SEXT"
-        outFile.write("{}: {}, L={}, n_slices={}, synch_rad={}, K2={}\n"
+        outFile.write("{}: {}, L={}, N_SLICES={}, SYNCH_RAD={}, K2={}\n"
                       .format(self.Name, sextType, self.Length, n_slices, int(synch_rad), self.K2))
 
     def WriteMADX(self, outFile):
         outFile.write("{}: SEXTUPOLE, L={}, K2={};\n".format(self.Name, self.Length, self.K2))
 
-class Octu:
-    def __init__(self, name, length, k3):
-        self.Name = name
-        self.Length = length
-        self.K3 = k3
-        if self.K3 is None: self.K3 = 0.
+class Octu(Element):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
+        self.Length = kwargs.get('length')
+        self.K3 = kwargs.get('k3', 0.)
 
     def WriteElegant(self, outFile, kick=True, n_slices=10, synch_rad=True):
         octuType = "KOCT" if kick else "OCTU"
-        outFile.write("{}: {}, L={}, n_slices={}, synch_rad={}, K3={}\n"
+        outFile.write("{}: {}, L={}, N_SLICES={}, SYNCH_RAD={}, K3={}\n"
                       .format(self.Name, octuType, self.Length, n_slices, int(synch_rad), self.K3))
 
     def WriteMADX(self, outFile):
@@ -153,20 +174,25 @@ class Lattice:
         self.Sexts = {}
         self.Octus = {}
 
-    def AddElement(self, element):
+    def AddElement(self, element, **kwargs):
 
-        # Add length to the sequence
-        if element.Name in self.Sequence:
-            self.Locations[element.Name].append(self.Locations[element.Name][-1])
-            last_occurance = max(i for i,e in enumerate(self.Sequence) if e == element.Name)
-            for index in range(len(self.Sequence)-last_occurance):
-                inter_lattice_element = self.Elements[self.Sequence[last_occurance+index]]
-                if hasattr(inter_lattice_element, 'Length'):
-                    self.Locations[element.Name][-1] += inter_lattice_element.Length
+        # Log the location of the element in the beamline
+        if element.Center is not None:
+            if hasattr(element, 'Length'):
+                self.Locations[element.Name] = [element.Center - element.Length/2.]
+            else:
+                self.Locations[element.Name] = [element.Center]
         else:
-            self.Locations[element.Name] = [self.Length]
-        if hasattr(element, 'Length'):
-            self.Length += element.Length
+            if element.Name in self.Sequence:
+                self.Locations[element.Name].append(self.Locations[element.Name][-1])
+                last_occurance = max(i for i,e in enumerate(self.Sequence) if e == element.Name)
+                for index in range(len(self.Sequence)-last_occurance):
+                    inter_lattice_element = self.Elements[self.Sequence[last_occurance+index]]
+                    if hasattr(inter_lattice_element, 'Length'):
+                        self.Locations[element.Name][-1] += inter_lattice_element.Length
+            else:
+                self.MeasureLength()
+                self.Locations[element.Name] = [self.Length]
 
         # Add element to the sequence
         self.Elements[element.Name] = element
@@ -183,6 +209,8 @@ class Lattice:
         if element.__class__.__name__ == "Octu": self.Octus[element.Name] = element
 
     def AssociateDipoleEdges(self):
+        """Associate dipole edges with the dipole elements through their locations in a lattice sequence."""
+
         non_edge_dipoles = []
         if not self.DipoleEdges:
             return
@@ -191,11 +219,43 @@ class Lattice:
                 index = self.Sequence.index(dipole)
             except ValueError:
                 continue
+            if index-1 < 0 or index+1 >= len(self.Sequence):
+                non_edge_dipoles.append(dipole)
+                continue
             upEdge = self.Sequence[index-1]
             downEdge = self.Sequence[index+1]
             if upEdge not in self.DipoleEdges or downEdge not in self.DipoleEdges:
                 non_edge_dipoles.append(dipole)
-            else:
-                self.Dipoles[dipole].AddUpEdge(self.DipoleEdges[upEdge])
-                self.Dipoles[dipole].AddDownEdge(self.DipoleEdges[downEdge])
+                continue
+            self.Dipoles[dipole].AddUpEdge(self.DipoleEdges[upEdge])
+            self.Dipoles[dipole].AddDownEdge(self.DipoleEdges[downEdge])
         return non_edge_dipoles
+
+    def InsertDrifts(self):
+        """Insert drifts into a lattice defined as a line."""
+
+        lattice_coordinate = 0.
+        drift_index = 0
+        drifts = {}
+        for lte_index,lte_element in enumerate(self.Sequence):
+            lte_location = self.Locations[lte_element][0]
+            drift_length = lte_location - lattice_coordinate
+            if drift_length > 0.:
+                drift = Drift("drift"+str(drift_index), length=drift_length)
+                self.Elements[drift.Name] = drift
+                self.Drifts[drift.Name] = drift
+                drifts[drift.Name] = lte_index+drift_index
+                drift_index += 1
+            lattice_coordinate += drift_length
+            if hasattr(self.Elements[lte_element], 'Length'):
+                lattice_coordinate += self.Elements[lte_element].Length
+        for drift in drifts:
+            self.Sequence.insert(drifts[drift], drift)
+
+    def MeasureLength(self):
+        """Measure the length of the lattice by summing up all of the elements in the sequence."""
+
+        self.Length = 0.
+        for element in self.Sequence:
+            if hasattr(self.Elements[element], 'Length'):
+                self.Length += self.Elements[element].Length

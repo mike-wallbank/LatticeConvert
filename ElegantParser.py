@@ -54,7 +54,7 @@ Importing lattice in ELEGANT format from\n{}
 
             if element_type == "DRIF":
                 length = self.ElementParameter(element_params, 'L')
-                drift = Drift(element_name, length)
+                drift = Drift(element_name, length=length)
                 elements[element_name] = drift
 
             elif element_type == "CSBEND":
@@ -64,7 +64,7 @@ Importing lattice in ELEGANT format from\n{}
                 gap = self.ElementParameter(element_params, 'HGAP')
                 fint = self.ElementParameter(element_params, 'FINT')
                 if fint is None: fint = 0.5
-                dipole = Dipole(element_name, length, angle, None, k1, gap, fint)
+                dipole = Dipole(element_name, length=length, angle=angle, k1=k1, gap=gap, fringek=fint)
                 elements[element_name] = dipole
 
             elif element_type == "KQUAD":
@@ -72,27 +72,27 @@ Importing lattice in ELEGANT format from\n{}
                 k1 = self.ElementParameter(element_params, 'K1')
                 tilt = self.ElementParameter(element_params, 'TILT')
                 if tilt is None:
-                    quad = Quad(element_name, length, k1)
+                    quad = Quad(element_name, length=length, k1=k1)
                     elements[element_name] = quad
                 else:
-                    squad = SQuad(element_name, length, k1, tilt)
+                    squad = SQuad(element_name, length=length, k1=k1, tilt=tilt)
                     elements[element_name] = squad
 
             elif element_type == "KSEXT":
                 length = self.ElementParameter(element_params, 'L')
                 k2 = self.ElementParameter(element_params, 'K2')
-                sext = Sext(element_name, length, k2)
+                sext = Sext(element_name, length=length, k2=k2)
                 elements[element_name] = sext
 
             elif element_type == "KOCT":
                 length = self.ElementParameter(element_params, 'L')
                 k3 = self.ElementParameter(element_params, 'K3')
-                octu = Octu(element_name, length, k3)
+                octu = Octu(element_name, length=length, k3=k3)
                 elements[element_name] = octu
 
             elif element_type == "RFCA":
                 length = self.ElementParameter(element_params, 'L')
-                rf = RF(element_name, length, None, None)
+                rf = RF(element_name, length=length)
                 elements[element_name] = rf
 
             elif element_type == "LINE":
@@ -108,8 +108,13 @@ Importing lattice in ELEGANT format from\n{}
                 if element_type not in self.IgnoredElementTypes:
                     self.IgnoredElementTypes.append(element_type)
 
+        # Measure the length of the lattice
+        self.Lattice.MeasureLength()
+
         if kwargs.get('verbose'):
             self.ReportParseErrors()
+
+        self.Lattice.Length = self.Lattice.MeasureLength()
 
         print("Total lattice length {}m.".format(self.Lattice.Length))
 
@@ -129,7 +134,7 @@ Completed.
     # ---------------------------------------------------------------------------
     def WriteLattice(self, **kwargs):
 
-        if 'outputFile' in kwargs and kwargs.get('outputFile') is not None:
+        if kwargs.get('outputFile', None) is not None:
             outputFile = kwargs.get('outputFile')
         else:
             outputFile = "{}.lte".format(self.Lattice.Name)
@@ -139,7 +144,8 @@ Completed.
 Writing lattice in ELEGANT format to\n{}
 '''.format(outputFile))
 
-        outFile = open(outputFile, 'w')
+        access_mode = 'a' if kwargs.get('append', False) else 'w'
+        outFile = open(outputFile, access_mode)
         outFile.write('''
 ! Written by LatticeConvert. \n! {}\n
 '''.format(datetime.now()))
@@ -159,7 +165,8 @@ Writing lattice in ELEGANT format to\n{}
         # Write quads
         outFile.write('! Quads\n')
         for quad in self.Lattice.Quads:
-            self.Lattice.Quads[quad].WriteElegant(outFile)
+            self.Lattice.Quads[quad].WriteElegant(outFile,
+                                                  kick=True, n_slices=10, synch_rad=True, k1_zero=kwargs.get("k1_zero", False))
         outFile.write('\n')
 
         # Write skew quads
@@ -187,12 +194,16 @@ Writing lattice in ELEGANT format to\n{}
         outFile.write('\n')
 
         # Write misc
-        self.WriteMiscElements(outFile)
-        outFile.write('\n')
+        if kwargs.get('recirc', False):
+            self.WriteMiscElements(outFile)
+            outFile.write('\n')
 
         # Write lattice
         outFile.write('! Lines\n')
-        outFile.write("MACHINE: LINE = (rc, ")
+        if kwargs.get('recirc', False):
+            outFile.write("{}: LINE = (rc, ".format(self.Lattice.Name))
+        else:
+            outFile.write("{}: LINE = (".format(self.Lattice.Name))
         for element in self.Lattice.Sequence:
             if element in self.Lattice.DipoleEdges:
                 continue

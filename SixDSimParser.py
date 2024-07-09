@@ -8,6 +8,7 @@
 import os
 from LatticeParser import LatticeParser
 from LatticeData import *
+from datetime import datetime
 
 # ---------------------------------------------------------------------------
 class SixDSimParser(LatticeParser):
@@ -72,7 +73,7 @@ Importing lattice in 6DSim format from\n{}
 
                 if element_type == "Gap":
                     length = self.ElementParameter(line_split, 'L', variables) * 0.01
-                    drift = Drift(element_name, length)
+                    drift = Drift(element_name, length=length)
                     elements[element_name] = drift
 
                 elif element_type == "Dipole":
@@ -89,7 +90,7 @@ Importing lattice in 6DSim format from\n{}
                     if gap: gap *= 0.01
                     fringek = self.ElementParameter(line_split, 'fringeK', variables)
                     if fringek: fringek /= 2.
-                    dipole = Dipole(element_name, length, None, k0, k1, gap, fringek)
+                    dipole = Dipole(element_name, length=length, k0=k0, k1=k1, gap=gap, fringek=fringek)
                     elements[element_name] = dipole
 
                 elif element_type == "DipEdge":
@@ -99,7 +100,7 @@ Importing lattice in 6DSim format from\n{}
                     inA = self.ElementParameter(line_split, 'inA', variables)
                     fringek = self.ElementParameter(line_split, 'fringeK', variables)
                     if fringek: fringek /= 2.
-                    dipedge = DipoleEdge(element_name, curvature, gap, fringek)
+                    dipedge = DipoleEdge(element_name, angle=curvature, gap=gap, fringek=fringek)
                     elements[element_name] = dipedge
 
                 elif element_type == "Quad":
@@ -107,7 +108,7 @@ Importing lattice in 6DSim format from\n{}
                     gradient = self.ElementParameter(line_split, 'G', variables)
                     # convert kG/cm to SI and normalize
                     k1 = gradient * 1.e1 / variables['rigidity']
-                    quad = Quad(element_name, length, k1)
+                    quad = Quad(element_name, length=length, k1=k1)
                     elements[element_name] = quad
 
                 elif element_type == "SQuad":
@@ -115,7 +116,7 @@ Importing lattice in 6DSim format from\n{}
                     gradient = self.ElementParameter(line_split, 'G', variables)
                     k1 = gradient * 10 / variables['rigidity']
                     angle = self.ElementParameter(line_split, 'rotA', variables)
-                    squad = SQuad(element_name, length, k1, angle)
+                    squad = SQuad(element_name, length=length, k1=k1, angle=angle)
                     elements[element_name] = squad
 
                 elif element_type == "Mult":
@@ -125,21 +126,21 @@ Importing lattice in 6DSim format from\n{}
                         gradient = self.ElementParameter(line_split, 'M2N', variables)
                         # convert kG/cm2 to SI and normalize
                         k2 = gradient * 1.e3 / variables['rigidity']
-                        sext = Sext(element_name, length, k2)
+                        sext = Sext(element_name, length=length, k2=k2)
                         elements[element_name] = sext
 
                     elif 'M3N' in line_split:
                         gradient = self.ElementParameter(line_split, 'M3N', variables)
                         # convert kG/cm3 to SI and normalize
                         k3 = gradient * 1.e5 / variables['rigidity']
-                        octu = Octu(element_name, length, k3)
+                        octu = Octu(element_name, length=length, k3=k3)
                         elements[element_name] = octu
 
                 elif element_type == "Acc":
                     length = self.ElementParameter(line_split, 'L', variables) * 0.01
                     energy = self.ElementParameter(line_split, 'U', variables)
                     frequency = self.ElementParameter(line_split, 'F', variables)
-                    rf = RF(element_name, length, energy, frequency)
+                    rf = RF(element_name, length=length, energy=energy, frequency=frequency)
                     elements[element_name] = rf
 
                 else:
@@ -157,6 +158,9 @@ Importing lattice in 6DSim format from\n{}
 
         # Associate edges to dipoles after reading in complete lattice
         non_edge_dipoles = self.Lattice.AssociateDipoleEdges()
+
+        # Measure the length of the lattice
+        self.Lattice.MeasureLength()
 
         if kwargs.get('verbose'):
             #print(variables)
@@ -184,5 +188,39 @@ Completed.
         return value
 
     # ---------------------------------------------------------------------------
-    def WriteLattice(self):
-        pass
+    def WriteLattice(self, **kwargs):
+
+        if 'outputFile' in kwargs and kwargs.get('outputFile') is not None:
+            outputFile = kwargs.get('outputFile')
+        else:
+            outputFile = "{}.6ds".format(self.Lattice.Name)
+
+        print('''
+-----------------------------------------------------
+Writing lattice in 6DSim format to\n{}
+'''.format(outputFile))
+
+        outFile = open(outputFile, 'w')
+        outFile.write('''
+// Written by LatticeConvert. \n// {}\n
+'''.format(datetime.now()))
+
+        outFile.write('''
+// LatticeConvert is not fully ready to produce complete 6DSim files.
+// Currently the output consists of unnormalized gradients which can
+// be used to modify an existing 6DSim lattice file.\n\n
+''')
+
+        # Hard-code for now, 150 MeV
+        rigidity = 150.e6 / 2.99792458E8
+        kASQA = 0.006946
+        kRB = 0.016449
+
+        # Write quads
+        outFile.write('// Quads\n')
+        for quad in self.Lattice.Quads:
+            q = self.Lattice.Quads[quad]
+            gradient = q.K1*rigidity/1.e1
+            outFile.write("ID: {} QUAD L {} G {} (kASQA: {}, kRB: {})\n".format(q.Name, q.Length/0.01, gradient, gradient/kASQA, gradient/kRB))
+        outFile.write('\n')
+

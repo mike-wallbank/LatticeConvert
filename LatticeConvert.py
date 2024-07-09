@@ -31,12 +31,24 @@ class LatticeConverter:
                           verbose=self.Verbose)
         self.Lattice = parser.Lattice
 
+    def LoadMADX(self, **kwargs):
+        parser = MADXParser()
+        parser.ParseInput(inputFile=kwargs.get('inputFile'),
+                          verbose=self.Verbose)
+        self.Lattice = parser.Lattice
+
+    def Write6DSim(self, **kwargs):
+        parser = SixDSimParser()
+        parser.LoadLattice(self.Lattice)
+        parser.WriteLattice(**kwargs)
+
     def WriteElegant(self, **kwargs):
         parser = ElegantParser()
         parser.LoadLattice(self.Lattice)
-        parser.WriteLattice(outputFile=kwargs.get('outputFile'))
+        parser.WriteLattice(**kwargs)
 
     def WriteMADX(self, **kwargs):
         parser = MADXParser()
         parser.LoadLattice(self.Lattice)
-        parser.WriteLattice(outputFile=kwargs.get('outputFile'))
+        parser.WriteLattice(**kwargs)
+

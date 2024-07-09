@@ -21,30 +21,25 @@ def main():
     parser.add_argument('-o', '--output_format', choices=['elegant','madx','6dsim'])
     parser.add_argument('-f', '--output_filename')
     parser.add_argument('-v', '--verbose', action='store_true')
+    config = parser.parse_args()
 
-    args = parser.parse_args()
-
-    converter = LatticeConverter(verbose=args.verbose);
-    if args.input_format in ['madx']:
-        print("ERROR (convert-lattice.py): LatticeConvert is not yet able to input MAD-X lattices.")
-        exit()
-    if not args.input_filename or not os.path.isfile(args.input_filename):
-        print("ERROR (convert-lattice.py): Unable to open input file {}.".format(args.input_filename))
-        exit()
-    if args.input_format == "elegant":
-        converter.LoadElegant(inputFile=args.input_filename)
-    elif args.input_format == "madx":
-        converter.LoadMADX(inputFile=args.input_filename)
-    elif args.input_format == "6dsim":
-        converter.Load6DSim(inputFile=args.input_filename)
-    if args.output_format in ['6dsim']:
-        print("ERROR (convert-lattice.py): LatticeConvert is not yet able to output 6DSim lattices.")
-    if args.output_format == "elegant":
-        converter.WriteElegant(outputFile=args.output_filename)
-    elif args.output_format == "madx":
-        converter.WriteMADX(outputFile=args.output_filename)
-    elif args.output_format == "6dsim":
-        converter.WriteSixDSim(outputFile=args.output_filename)
+    converter = LatticeConverter(verbose=config.verbose);
+    if config.input_format in ['madx']:
+        raise RuntimeError("LatticeConvert is not yet able to input MAD-X lattices.")
+    if not config.input_filename or not os.path.isfile(config.input_filename):
+        raise RuntimeError("Unable to open input file {}.".format(config.input_filename))
+    if config.input_format == "elegant":
+        converter.LoadElegant(inputFile=config.input_filename)
+    elif config.input_format == "madx":
+        converter.LoadMADX(inputFile=config.input_filename)
+    elif config.input_format == "6dsim":
+        converter.Load6DSim(inputFile=config.input_filename)
+    if config.output_format == "elegant":
+        converter.WriteElegant(outputFile=config.output_filename)
+    elif config.output_format == "madx":
+        converter.WriteMADX(outputFile=config.output_filename)
+    elif config.output_format == "6dsim":
+        converter.Write6DSim(outputFile=config.output_filename)
 
 if __name__ == "__main__":
     main();
