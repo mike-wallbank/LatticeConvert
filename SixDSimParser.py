@@ -114,7 +114,7 @@ Importing lattice in 6DSim format from\n{}
                 elif element_type == "SQuad":
                     length = self.ElementParameter(line_split, 'L', variables) * 0.01
                     gradient = self.ElementParameter(line_split, 'G', variables)
-                    k1 = gradient * 10 / variables['rigidity']
+                    k1 = gradient * 1.e1 / variables['rigidity']
                     angle = self.ElementParameter(line_split, 'rotA', variables)
                     squad = SQuad(element_name, length=length, k1=k1, angle=angle)
                     elements[element_name] = squad
@@ -177,7 +177,7 @@ Completed.
 
     # ---------------------------------------------------------------------------
     def ElementParameter(self, line, parameter, variables):
-        value = None
+        value = 0 #Default to zero since 6Dsim does not require input values
         try:
             index = line.index(parameter)
             value_str = self.ExpandExpression(line[index+1], variables)

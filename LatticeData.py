@@ -116,8 +116,8 @@ class Quad(Element):
         outFile.write("{}: QUADRUPOLE, L={}, K1={};\n".format(self.Name, self.Length, self.K1))
 
 class SQuad(Element):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, name, **kwargs):
+        super().__init__(name,**kwargs)
         self.Length = kwargs.get('length')
         self.K1 = kwargs.get('k1', 0.)
         self.Tilt = kwargs.get('tilt', 0.)
