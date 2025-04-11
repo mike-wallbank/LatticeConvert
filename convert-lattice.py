@@ -16,10 +16,11 @@ def main():
     parser = argparse.ArgumentParser(prog = "convert-lattice",
                                      description = "Simple lattice conversion between different formats.")
 
-    parser.add_argument('-i', '--input_format', choices=['elegant','madx','6dsim'])
-    parser.add_argument('-s', '--input_filename')
-    parser.add_argument('-o', '--output_format', choices=['elegant','madx','6dsim'])
-    parser.add_argument('-f', '--output_filename')
+    parser.add_argument('-i', '--input_format', choices=['elegant','madx','6dsim'], required=True)
+    parser.add_argument('-s', '--input_filename', type=str, required=True)
+    parser.add_argument('--beamline', type=str, required=True)
+    parser.add_argument('-o', '--output_format', choices=['elegant','madx','6dsim'], required=True)
+    parser.add_argument('-f', '--output_filename', type=str, required=True)
     parser.add_argument('-v', '--verbose', action='store_true')
     config = parser.parse_args()
 
@@ -29,7 +30,8 @@ def main():
     if not config.input_filename or not os.path.isfile(config.input_filename):
         raise RuntimeError("Unable to open input file {}.".format(config.input_filename))
     if config.input_format == "elegant":
-        converter.LoadElegant(inputFile=config.input_filename)
+        converter.LoadElegant(inputFile=config.input_filename,
+                              beamline=config.beamline)
     elif config.input_format == "madx":
         converter.LoadMADX(inputFile=config.input_filename)
     elif config.input_format == "6dsim":
@@ -37,7 +39,8 @@ def main():
     if config.output_format == "elegant":
         converter.WriteElegant(outputFile=config.output_filename)
     elif config.output_format == "madx":
-        converter.WriteMADX(outputFile=config.output_filename)
+        converter.WriteMADX(outputFile=config.output_filename,
+                            beamline=config.beamline)
     elif config.output_format == "6dsim":
         converter.Write6DSim(outputFile=config.output_filename)
 

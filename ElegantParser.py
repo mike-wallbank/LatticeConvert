@@ -16,8 +16,19 @@ class ElegantParser(LatticeParser):
         LatticeParser.__init__(self)
 
     # ---------------------------------------------------------------------------
+    def AddBeamline(self, elements, beamlines, line):
+        for line_element in beamlines[line]:
+            if line_element in beamlines:
+                self.AddBeamline(elements, beamlines, line_element)
+            elif line_element in elements:
+                self.Lattice.AddElement(elements[line_element])
+            else:
+                self.IgnoredElements.append(line_element)
+
+    # ---------------------------------------------------------------------------
     def ParseInput(self, **kwargs):
         inputFile = kwargs.get('inputFile')
+        beamline = kwargs.get('beamline')
         print('''
 -----------------------------------------------------
 Importing lattice in ELEGANT format from\n{}
@@ -26,6 +37,7 @@ Importing lattice in ELEGANT format from\n{}
         self.Lattice.Name = os.path.basename(inputFile).strip('.lte')
 
         elements = {}
+        beamlines = {}
         line_buffer = ''
 
         for line in open(inputFile, 'r'):
@@ -52,8 +64,9 @@ Importing lattice in ELEGANT format from\n{}
                 element_params = element_variables.split(',')[1:]
                 element_params = [e.strip() for e in element_params]
 
-            if element_type == "DRIF":
+            if element_type == "DRIF" or element_type == "EDRIFT":
                 length = self.ElementParameter(element_params, 'L')
+                if length is None: length = 0.
                 drift = Drift(element_name, length=length)
                 elements[element_name] = drift
 
@@ -70,7 +83,7 @@ Importing lattice in ELEGANT format from\n{}
             elif element_type == "KQUAD":
                 length = self.ElementParameter(element_params, 'L')
                 k1 = self.ElementParameter(element_params, 'K1')
-                tilt = self.ElementParameter(element_params, 'TILT')
+                tilt = self.ElementParameter(element_params, 'TILT', none_to_zero=False)
                 if tilt is None:
                     quad = Quad(element_name, length=length, k1=k1)
                     elements[element_name] = quad
@@ -95,14 +108,25 @@ Importing lattice in ELEGANT format from\n{}
                 rf = RF(element_name, length=length)
                 elements[element_name] = rf
 
+            elif element_type == "SOLE":
+                length = self.ElementParameter(element_params, 'L')
+                solenoid = Solenoid(element_name, length=length)
+                elements[element_name] = solenoid
+
             elif element_type == "LINE":
                 lattice_elements = element_params.strip().strip('(').strip(')').split(',')
                 for lattice_element in lattice_elements:
                     lattice_element = lattice_element.strip()
-                    if lattice_element in elements:
-                        self.Lattice.AddElement(elements[lattice_element])
-                    else:
-                        self.IgnoredElements.append(lattice_element)
+                if element_name == beamline:
+                    for lattice_element in lattice_elements:
+                        if lattice_element in beamlines:
+                            self.AddBeamline(elements, beamlines, lattice_element)
+                        elif lattice_element in elements:
+                            self.Lattice.AddElement(elements[lattice_element])
+                        else:
+                            self.IgnoredElements.append(lattice_element)
+                else:
+                    beamlines[element_name] = lattice_elements
 
             else:
                 if element_type not in self.IgnoredElementTypes:
@@ -114,7 +138,7 @@ Importing lattice in ELEGANT format from\n{}
         if kwargs.get('verbose'):
             self.ReportParseErrors()
 
-        self.Lattice.Length = self.Lattice.MeasureLength()
+        self.Lattice.MeasureLength()
 
         print("Total lattice length {}m.".format(self.Lattice.Length))
 
@@ -124,11 +148,13 @@ Completed.
 ''')
 
     # ---------------------------------------------------------------------------
-    def ElementParameter(self, elements, parameter):
+    def ElementParameter(self, elements, parameter, none_to_zero=True):
         value = None
         for element in elements:
             if element.startswith(parameter):
                 value = float(element.split('=')[1].strip().strip(','))
+        if value is None and none_to_zero:
+            value = 0.
         return value
 
     # ---------------------------------------------------------------------------

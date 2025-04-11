@@ -116,8 +116,8 @@ class Quad(Element):
         outFile.write("{}: QUADRUPOLE, L={}, K1={};\n".format(self.Name, self.Length, self.K1))
 
 class SQuad(Element):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
         self.Length = kwargs.get('length')
         self.K1 = kwargs.get('k1', 0.)
         self.Tilt = kwargs.get('tilt', 0.)
@@ -158,6 +158,14 @@ class Octu(Element):
     def WriteMADX(self, outFile):
         outFile.write("{}: OCTUPOLE, L={}, K3={};\n".format(self.Name, self.Length, self.K3))
 
+class Solenoid(Element):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
+        self.Length = kwargs.get('length')
+
+    def WriteMADX(self, outFile):
+        outFile.write("{}: DRIFT, L={};\n".format(self.Name, self.Length))
+
 class Lattice:
     def __init__(self):
         self.Name = "Lattice"
@@ -173,6 +181,7 @@ class Lattice:
         self.SkewQuads = {}
         self.Sexts = {}
         self.Octus = {}
+        self.Solenoids = {}
 
     def AddElement(self, element, **kwargs):
 
@@ -207,6 +216,7 @@ class Lattice:
         if element.__class__.__name__ == "SQuad": self.SkewQuads[element.Name] = element
         if element.__class__.__name__ == "Sext": self.Sexts[element.Name] = element
         if element.__class__.__name__ == "Octu": self.Octus[element.Name] = element
+        if element.__class__.__name__ == "Solenoid": self.Solenoids[element.Name] = element
 
     def AssociateDipoleEdges(self):
         """Associate dipole edges with the dipole elements through their locations in a lattice sequence."""
@@ -229,11 +239,13 @@ class Lattice:
                 continue
             self.Dipoles[dipole].AddUpEdge(self.DipoleEdges[upEdge])
             self.Dipoles[dipole].AddDownEdge(self.DipoleEdges[downEdge])
+            print("Adding edges {} and {} to dipole {}".format(upEdge, downEdge, dipole))
         return non_edge_dipoles
 
-    def InsertDrifts(self):
+    def InsertDrifts(self, mode):
         """Insert drifts into a lattice defined as a line."""
 
+        lattice_length = self.Length
         lattice_coordinate = 0.
         drift_index = 0
         drifts = {}
@@ -251,7 +263,26 @@ class Lattice:
                 lattice_coordinate += self.Elements[lte_element].Length
         for drift in drifts:
             self.Sequence.insert(drifts[drift], drift)
+        self.MeasureLength()
 
+        ends_drift_length = lattice_length - self.Length
+        if mode == "both":
+            start_drift = Drift("drift_start", length=ends_drift_length/2.)
+            self.Elements[start_drift.Name] = start_drift
+            self.Drifts[start_drift.Name] = start_drift
+            self.Sequence.insert(0, start_drift.Name)
+            end_drift = Drift("drift_end", length=ends_drift_length/2.)
+            self.Elements[end_drift.Name] = end_drift
+            self.Drifts[end_drift.Name] = end_drift
+            self.Sequence.append(end_drift.Name)
+        elif mode == "end":
+            end_drift = Drift("drift_end", length=ends_drift_length)
+            self.Elements[end_drift.Name] = end_drift
+            self.Drifts[end_drift.Name] = end_drift
+            self.Sequence.append(end_drift.Name)
+        self.MeasureLength()
+        print("Length of lattice after adding drifts {} (defintion {})".format(self.Length, lattice_length))
+        
     def MeasureLength(self):
         """Measure the length of the lattice by summing up all of the elements in the sequence."""
 
@@ -259,3 +290,4 @@ class Lattice:
         for element in self.Sequence:
             if hasattr(self.Elements[element], 'Length'):
                 self.Length += self.Elements[element].Length
+

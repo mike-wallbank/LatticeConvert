@@ -20,20 +20,20 @@ class LatticeConverter:
         self.Lattice = Lattice()
 
     def Load6DSim(self, **kwargs):
-        parser = SixDSimParser()
-        parser.ParseInput(inputFile=kwargs.get('inputFile'),
+        parser = SixDSimParser(kwargs)
+        parser.ParseInput(**kwargs,
                           verbose=self.Verbose)
         self.Lattice = parser.Lattice
 
     def LoadElegant(self, **kwargs):
-        parser = ElegantParser()
-        parser.ParseInput(inputFile=kwargs.get('inputFile'),
+        parser = ElegantParser(**kwargs)
+        parser.ParseInput(**kwargs,
                           verbose=self.Verbose)
         self.Lattice = parser.Lattice
 
     def LoadMADX(self, **kwargs):
         parser = MADXParser()
-        parser.ParseInput(inputFile=kwargs.get('inputFile'),
+        parser.ParseInput(**kwargs,
                           verbose=self.Verbose)
         self.Lattice = parser.Lattice
 

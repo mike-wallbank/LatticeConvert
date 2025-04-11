@@ -18,6 +18,7 @@ class MADXParser(LatticeParser):
     # ---------------------------------------------------------------------------
     def ParseInput(self, **kwargs):
         inputFile = kwargs.get('inputFile')
+        beamline = kwargs.get('beamline')
         print('''
 -----------------------------------------------------
 Importing lattice in MAD-X format from\n{}
@@ -77,6 +78,12 @@ Importing lattice in MAD-X format from\n{}
                 element = copy.deepcopy(elements[element_params[0]])
                 elements[element_name] = element
 
+            if element_variables.startswith("drift"):
+                print("Inputting drift {}".format(element_name))
+                length = self.ElementParameter(element_parames, 'l', variables)
+                drift = Drift(element_name, length=length)
+                elements[element_name] = drift
+
             if element_variables.startswith("sbend") or element_variables.startswith("rbend"):
                 length = self.ElementParameter(element_params, 'l', variables)
                 angle = self.ElementParameter(element_params, 'angle', variables)
@@ -113,96 +120,24 @@ Importing lattice in MAD-X format from\n{}
         # Associate edges to dipoles after reading in complete lattice
         non_edge_dipoles = self.Lattice.AssociateDipoleEdges()
 
-        self.Lattice.MeasureLength()
-        print("Before inserting drifts, lattice length {}".format(self.Lattice.Length))
+        # Set the lattice length
+        if kwargs.get("length", None) != None:
+            self.Length = kwargs.get("length")
 
         # Insert drifts into lattice
-        self.Lattice.InsertDrifts()
-
-        self.Lattice.MeasureLength()
-        print("After inserting drifts, lattice length {}".format(self.Lattice.Length))
+        if kwargs.get("add_drifts", None) != None:
+            self.Lattice.InsertDrifts(kwargs.get("add_drifts"))
 
         if kwargs.get('verbose'):
             self.ReportParseErrors()
             if non_edge_dipoles:
                 self.ReportParseError(non_edge_dipoles, "Dipoles with no edges in the lattice")
 
-#             line_split = lte_line.split(':')
-#             element_name = line_split[0].strip().strip('\"')
-#             element_variables = line_split[1].strip()
-#             if element_variables.startswith("LINE"):
-#                 element_type = element_variables.split('=')[0].strip()
-#                 element_params = element_variables.split('=')[1]
-#             else:
-#                 element_type = element_variables.split(',')[0].strip()
-#                 element_params = element_variables.split(',')[1:]
-#                 element_params = [e.strip() for e in element_params]
+        print('''
+Completed.
+-----------------------------------------------------
+''')
 
-#             if element_type == "DRIF":
-#                 length = self.ElementParameter(element_params, 'L')
-#                 drift = Drift(element_name, length)
-#                 elements[element_name] = drift
-
-#             elif element_type == "CSBEND":
-#                 length = self.ElementParameter(element_params, 'L')
-#                 angle = self.ElementParameter(element_params, 'ANGLE')
-#                 k1 = self.ElementParameter(element_params, 'K1')
-#                 gap = self.ElementParameter(element_params, 'HGAP')
-#                 fint = self.ElementParameter(element_params, 'FINT')
-#                 if fint is None: fint = 0.5
-#                 dipole = Dipole(element_name, length, angle, None, k1, gap, fint)
-#                 elements[element_name] = dipole
-
-#             elif element_type == "KQUAD":
-#                 length = self.ElementParameter(element_params, 'L')
-#                 k1 = self.ElementParameter(element_params, 'K1')
-#                 tilt = self.ElementParameter(element_params, 'TILT')
-#                 if tilt is None:
-#                     quad = Quad(element_name, length, k1)
-#                     elements[element_name] = quad
-#                 else:
-#                     squad = SQuad(element_name, length, k1, tilt)
-#                     elements[element_name] = squad
-
-#             elif element_type == "KSEXT":
-#                 length = self.ElementParameter(element_params, 'L')
-#                 k2 = self.ElementParameter(element_params, 'K2')
-#                 sext = Sext(element_name, length, k2)
-#                 elements[element_name] = sext
-
-#             elif element_type == "KOCT":
-#                 length = self.ElementParameter(element_params, 'L')
-#                 k3 = self.ElementParameter(element_params, 'K3')
-#                 octu = Octu(element_name, length, k3)
-#                 elements[element_name] = octu
-
-#             elif element_type == "RFCA":
-#                 length = self.ElementParameter(element_params, 'L')
-#                 rf = RF(element_name, length, None, None)
-#                 elements[element_name] = rf
-
-#             elif element_type == "LINE":
-#                 lattice_elements = element_params.strip().strip('(').strip(')').split(',')
-#                 for lattice_element in lattice_elements:
-#                     lattice_element = lattice_element.strip()
-#                     if lattice_element in elements:
-#                         self.Lattice.AddElement(elements[lattice_element])
-#                     else:
-#                         self.IgnoredElements.append(lattice_element)
-
-#             else:
-#                 if element_type not in self.IgnoredElementTypes:
-#                     self.IgnoredElementTypes.append(element_type)
-
-#         if kwargs.get('verbose'):
-#             self.ReportParseErrors()
-
-#         print("Total lattice length {}m.".format(self.Lattice.Length))
-
-#         print('''
-# Completed.
-# -----------------------------------------------------
-# ''')
 
     # ---------------------------------------------------------------------------
     def ElementParameter(self, elements, parameter, variables):
@@ -227,6 +162,7 @@ Importing lattice in MAD-X format from\n{}
             outputFile = kwargs.get('outputFile')
         else:
             outputFile = "{}.seq".format(self.Lattice.Name)
+        beamline = kwargs.get('beamline')
 
         print('''
 -----------------------------------------------------
@@ -280,9 +216,15 @@ Writing lattice in MAD-X format to\n{}
             self.Lattice.RF[rf].WriteMADX(outFile)
         outFile.write('\n')
 
+        # Write other stuff
+        outFile.write('! Others\n')
+        for solenoid in self.Lattice.Solenoids:
+            self.Lattice.Solenoids[solenoid].WriteMADX(outFile)
+        outFile.write('\n')
+
         # Write lattice
         outFile.write('! Lines\n')
-        outFile.write("{}: SEQUENCE, L={}, REFER=ENTRY;\n".format(self.Lattice.Name, self.Lattice.Length))
+        outFile.write("{}: SEQUENCE, L={}, REFER=ENTRY;\n".format(beamline, self.Lattice.Length))
         for i,element in enumerate(self.Lattice.Sequence):
             if element in self.Lattice.DipoleEdges:
                 continue
