@@ -65,25 +65,26 @@ Importing lattice in ELEGANT format from\n{}
                 element_params = [e.strip() for e in element_params]
 
             if element_type == "DRIF" or element_type == "EDRIFT":
-                length = self.ElementParameter(element_params, 'L')
-                if length is None: length = 0.
+                length = self.ElementParameter(element_params, 'L', default=0.)
                 drift = Drift(element_name, length=length)
                 elements[element_name] = drift
 
             elif element_type == "CSBEND":
                 length = self.ElementParameter(element_params, 'L')
                 angle = self.ElementParameter(element_params, 'ANGLE')
-                k1 = self.ElementParameter(element_params, 'K1')
-                gap = self.ElementParameter(element_params, 'HGAP')
-                fint = self.ElementParameter(element_params, 'FINT')
-                if fint is None: fint = 0.5
-                dipole = Dipole(element_name, length=length, angle=angle, k1=k1, gap=gap, fringek=fint)
+                k1 = self.ElementParameter(element_params, 'K1', default=0.)
+                e1 = self.ElementParameter(element_params, 'E1', default=0.)
+                e2 = self.ElementParameter(element_params, 'E2', default=0.)
+                gap = self.ElementParameter(element_params, 'HGAP', default=0.)
+                fint = self.ElementParameter(element_params, 'FINT', default=0.5)
+                dipole = Dipole(element_name, length=length, angle=angle, k1=k1,
+                                e1=e1, e2=e2, gap=gap, fringek=fint)
                 elements[element_name] = dipole
 
             elif element_type == "KQUAD":
                 length = self.ElementParameter(element_params, 'L')
-                k1 = self.ElementParameter(element_params, 'K1')
-                tilt = self.ElementParameter(element_params, 'TILT', none_to_zero=False)
+                k1 = self.ElementParameter(element_params, 'K1', default=0.)
+                tilt = self.ElementParameter(element_params, 'TILT')
                 if tilt is None:
                     quad = Quad(element_name, length=length, k1=k1)
                     elements[element_name] = quad
@@ -93,13 +94,13 @@ Importing lattice in ELEGANT format from\n{}
 
             elif element_type == "KSEXT":
                 length = self.ElementParameter(element_params, 'L')
-                k2 = self.ElementParameter(element_params, 'K2')
+                k2 = self.ElementParameter(element_params, 'K2', default=0.)
                 sext = Sext(element_name, length=length, k2=k2)
                 elements[element_name] = sext
 
             elif element_type == "KOCT":
                 length = self.ElementParameter(element_params, 'L')
-                k3 = self.ElementParameter(element_params, 'K3')
+                k3 = self.ElementParameter(element_params, 'K3', default=0.)
                 octu = Octu(element_name, length=length, k3=k3)
                 elements[element_name] = octu
 
@@ -148,13 +149,11 @@ Completed.
 ''')
 
     # ---------------------------------------------------------------------------
-    def ElementParameter(self, elements, parameter, none_to_zero=True):
-        value = None
+    def ElementParameter(self, elements, parameter, default=None):
+        value = default
         for element in elements:
             if element.startswith(parameter):
                 value = float(element.split('=')[1].strip().strip(','))
-        if value is None and none_to_zero:
-            value = 0.
         return value
 
     # ---------------------------------------------------------------------------

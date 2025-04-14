@@ -87,18 +87,14 @@ class Dipole(Element):
             outFile.write("{}: CSBEND, L={}, ANGLE={}, K1={}, HGAP={}, FINT={}, E1={}, E2={}, INTEGRATION_ORDER=4, N_SLICES={}, SYNCH_RAD={}, ISR={}\n"
                           .format(self.Name, length, self.Angle, self.K1, self.Gap, self.FringeK, edge_angle, edge_angle,
                                   n_slices, int(synch_rad), int(synch_rad)))
-            # outFile.write("{}: CCBEND, L={}, ANGLE={}, K1={}, HGAP={}, FINT1={}, FINT2={}, INTEGRATION_ORDER=4, N_SLICES={}, SYNCH_RAD={}, ISR={}\n"
-            #               .format(self.Name, length, self.Angle, self.K1, self.Gap, self.FringeK, self.FringeK, n_slices, int(synch_rad), int(synch_rad)))
-            # outFile.write("{}: RBEND, L={}, ANGLE={}, K1={}, HGAP={}, FINT={}, E1={}, E2={}\n"
-            #               .format(self.Name, length, self.Angle, self.K1, self.Gap, self.FringeK, self.E1, self.E2))
 
     def WriteMADX(self, outFile):
-        outFile.write("IN{}: DIPEDGE, H={}, HGAP={}, FINT={};\n"
-                      .format(self.Name, self.Angle/self.Length, self.Gap, self.FringeK))
+        outFile.write("IN{}: DIPEDGE, H={}, HGAP={}, FINT={}, E1={};\n"
+                      .format(self.Name, self.Angle/self.Length, self.Gap, self.FringeK, self.E1))
         outFile.write("{}: SBEND, L={}, ANGLE={}, K1={};\n"
                       .format(self.Name, self.Length, self.Angle, self.K1))
-        outFile.write("OUT{}: DIPEDGE, H={}, HGAP={}, FINT={};\n"
-                      .format(self.Name, self.Angle/self.Length, self.Gap, self.FringeK))
+        outFile.write("OUT{}: DIPEDGE, H={}, HGAP={}, FINT={}, E1={};\n"
+                      .format(self.Name, self.Angle/self.Length, self.Gap, self.FringeK, self.E2))
 
 class Quad(Element):
     def __init__(self, name, **kwargs):
